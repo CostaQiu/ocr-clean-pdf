@@ -21,8 +21,15 @@ winget install --id Typst.Typst -e
 ```
 验证 CUDA：`.\.venv-ocr\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"` 应为 `True`。
 
-## 用法
-1. 把要处理的 PDF 放进本目录，改 `config.py` 的 `INPUT_PDF`（或用 `run_ocr.py -p 路径`）。
+## 用法（图形界面，推荐）
+双击 **`run_ui.bat`** 打开界面：
+1. 「选择 PDF（可多选）」——可一次选同目录多本书。
+2. 「输出目录」默认 = 源 PDF 所在目录，可改。
+3. 「开始转换」——进度条按总页数推进，多本依次跑。
+4. 成品为 **`clean_<原名>.pdf`**，放在输出目录；中间文件在 `<输出目录>\_ocr_work\<书名>\`（含 `book.md`，可喂 TTS；支持续跑）。
+
+## 用法（命令行）
+1. 改 `config.py` 的 `INPUT_PDF`（或用 `run_ocr.py -p 路径 -o 输出目录`）。
 2. 双击 `run.bat`（后台 OCR，全书要一阵；首次会下模型）。
 3. 看 `output\ocr.done.flag` 出现且 `status: ok`。
 4. 双击 `make_pdf.bat`，在 `output\` 得到最终 PDF。

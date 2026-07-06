@@ -114,29 +114,37 @@ def run_all(
     lang: str,
     formula: bool = True,
     table: bool = True,
+    progress_cb=None,
 ) -> dict:
+    """progress_cb(pages_done, total, batch_index, num_batches, running) 可选：
+    running=True 表示该批开始处理，running=False 表示该批已完成。"""
     t0 = time.perf_counter()
     total = count_pages(pdf)
     batches = make_batches(total, batch_size)
+    nb = len(batches)
     failed = []
-    for start, end in batches:
+    for i, (start, end) in enumerate(batches):
+        if progress_cb:
+            progress_cb(start, total, i + 1, nb, True)
         if is_batch_done(output_dir, start, end):
             print(f"[batch {start:04d}-{end:04d}] 已完成，跳过")
-            continue
-        ok = _run_one_batch(
-            pdf,
-            batch_dir(output_dir, start, end),
-            start,
-            end,
-            backend,
-            lang,
-            formula,
-            table,
-        )
-        if ok:
-            mark_batch_done(output_dir, start, end)
         else:
-            failed.append([start, end])
+            ok = _run_one_batch(
+                pdf,
+                batch_dir(output_dir, start, end),
+                start,
+                end,
+                backend,
+                lang,
+                formula,
+                table,
+            )
+            if ok:
+                mark_batch_done(output_dir, start, end)
+            else:
+                failed.append([start, end])
+        if progress_cb:
+            progress_cb(end, total, i + 1, nb, False)
     elapsed = time.perf_counter() - t0
     return {
         "ok": not failed,

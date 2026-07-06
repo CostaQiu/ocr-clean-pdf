@@ -63,6 +63,21 @@ def build_pandoc_cmd(book_md: Path, out_pdf: Path, font: str) -> list[str]:
     ]
 
 
+def render(md_path: Path, pdf_path: Path, font: str = DEFAULT_FONT) -> Path:
+    """把 markdown 渲染成 PDF。缺工具/缺输入/渲染失败均抛异常。返回 pdf_path。"""
+    check_tools()
+    if not md_path.exists():
+        raise FileNotFoundError(f"找不到 {md_path}，请先跑 OCR + merge。")
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = build_pandoc_cmd(md_path, pdf_path, font)
+    print("[render]", " ".join(cmd))
+    proc = subprocess.run(cmd)
+    if proc.returncode != 0:
+        raise RuntimeError(f"渲染失败，pandoc 返回码 {proc.returncode}")
+    print(f"[ok] 生成 {pdf_path}")
+    return pdf_path
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="book.md → 干净 PDF（Pandoc+Typst）")
     ap.add_argument("--md", type=Path, default=config.OUTPUT_DIR / "book.md")
@@ -72,16 +87,10 @@ def main() -> None:
     ap.add_argument("--font", default=DEFAULT_FONT)
     args = ap.parse_args()
 
-    check_tools()
-    if not args.md.exists():
-        sys.exit(f"错误：找不到 {args.md}，请先跑 run_ocr.py + merge_md.py。")
-
-    cmd = build_pandoc_cmd(args.md, args.pdf, args.font)
-    print("[render]", " ".join(cmd))
-    proc = subprocess.run(cmd)
-    if proc.returncode != 0:
-        sys.exit(f"渲染失败，pandoc 返回码 {proc.returncode}")
-    print(f"[ok] 生成 {args.pdf}")
+    try:
+        render(args.md, args.pdf, args.font)
+    except (FileNotFoundError, RuntimeError, SystemExit) as e:
+        sys.exit(str(e))
 
 
 if __name__ == "__main__":
