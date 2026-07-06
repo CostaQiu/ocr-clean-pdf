@@ -26,6 +26,48 @@ def test_parse_keeps_body_and_footnotes_drops_header_and_pagenum(tmp_path):
     assert "66" not in md  # 页码丢弃
 
 
+def test_parse_embeds_image_at_position_with_caption(tmp_path):
+    # 造一个真实存在的图片文件
+    imgdir = tmp_path / "images"
+    imgdir.mkdir()
+    img = imgdir / "pic.jpg"
+    img.write_bytes(b"\xff\xd8\xff\xe0fakejpeg")
+    js = tmp_path / "b_content_list.json"
+    _write_json(
+        js,
+        [
+            {"type": "text", "text": "图前正文。", "page_idx": 0},
+            {
+                "type": "image",
+                "img_path": "images/pic.jpg",
+                "image_caption": ["图一 示意"],
+                "page_idx": 0,
+            },
+            {"type": "text", "text": "图后正文。", "page_idx": 0},
+        ],
+    )
+    md = merge_md.parse_content_list(js)
+    assert img.resolve().as_posix() in md  # 图片用绝对路径引用
+    assert "![](" in md
+    assert "*图一 示意*" in md  # 图注
+    # 位置大致正确:图在两段正文之间
+    assert md.index("图前正文。") < md.index("![](") < md.index("图后正文。")
+
+
+def test_parse_skips_missing_image(tmp_path):
+    js = tmp_path / "b_content_list.json"
+    _write_json(
+        js,
+        [
+            {"type": "text", "text": "正文。", "page_idx": 0},
+            {"type": "image", "img_path": "images/nonexist.jpg", "page_idx": 0},
+        ],
+    )
+    md = merge_md.parse_content_list(js)
+    assert "正文。" in md
+    assert "![](" not in md  # 图片文件不存在 → 不引用,不留死链
+
+
 def test_parse_renders_heading_by_text_level(tmp_path):
     js = tmp_path / "b_content_list.json"
     _write_json(
