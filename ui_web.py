@@ -23,6 +23,33 @@ import merge_md
 import make_pdf
 
 
+def browse_folder():
+    """弹出 Windows 原生文件夹选择框，返回所选路径。
+
+    用子进程跑 tkinter 对话框，避开 Gradio 工作线程里直接用 tkinter 的问题。
+    """
+    import os
+    import subprocess
+    import sys
+
+    code = (
+        "import sys; sys.stdout.reconfigure(encoding='utf-8');"
+        "import tkinter as tk; from tkinter import filedialog;"
+        "r=tk.Tk(); r.withdraw(); r.attributes('-topmost', True);"
+        "print(filedialog.askdirectory(title='选择书籍所在文件夹') or '', end='');"
+        "r.destroy()"
+    )
+    env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+    try:
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, timeout=300, env=env
+        )
+        folder = out.stdout.decode("utf-8", "replace").strip()
+        return folder if folder else gr.update()
+    except Exception:
+        return gr.update()
+
+
 def scan_folder(folder: str):
     """列出文件夹里所有 PDF(大小写都认)，默认全选；输出目录默认填该文件夹。"""
     folder = (folder or "").strip().strip('"')
@@ -109,9 +136,10 @@ def build():
         with gr.Row():
             folder = gr.Textbox(
                 label="① 书籍所在文件夹",
-                placeholder=r"粘贴文件夹路径，如 D:\books 或 C:\Users\Costa\Downloads",
-                scale=4,
+                placeholder=r"点「浏览」选文件夹，或直接粘贴路径如 D:\books",
+                scale=3,
             )
+            browse_btn = gr.Button("📁 浏览", scale=1)
             scan_btn = gr.Button("扫描 PDF", scale=1, variant="secondary")
         files = gr.CheckboxGroup(label="② 选择要转换的书（默认全选）", choices=[])
         outdir = gr.Textbox(
@@ -122,6 +150,10 @@ def build():
         go = gr.Button("④ 开始转换", variant="primary")
         result = gr.Markdown()
 
+        # 浏览 → 填路径 → 自动扫描列出 PDF
+        browse_btn.click(browse_folder, outputs=folder).then(
+            scan_folder, inputs=folder, outputs=[files, outdir, status]
+        )
         scan_btn.click(scan_folder, inputs=folder, outputs=[files, outdir, status])
         folder.submit(scan_folder, inputs=folder, outputs=[files, outdir, status])
         go.click(convert, inputs=[folder, files, outdir], outputs=result)

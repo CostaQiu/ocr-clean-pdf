@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
 set MINERU_MODEL_SOURCE=modelscope
-rem 可选提速(默认关):放开下一行会把 GPU 批量翻倍(batch_ratio 8->16)。
-rem 注意:这是对 16G 卡"谎报"32G 显存,有 OOM 风险,GPU 本非瓶颈,建议先不开。
+rem Optional speedup (off by default): the next line doubles GPU batch (ratio 8->16).
+rem It fakes 32GB VRAM on a 16GB card = OOM risk, GPU is not the bottleneck. Keep off.
 rem set MINERU_VIRTUAL_VRAM_SIZE=32
 set PY=C:\python_code\OCR\.venv-ocr\Scripts\python.exe
-echo 后台启动全书 OCR，完成后看 output\ocr.done.flag ...
+echo Starting full-book OCR in background. Check output\ocr.done.flag when done.
 start "ocr" /b "%PY%" "C:\python_code\OCR\run_ocr.py"
-echo 已在后台运行。可关闭本窗口，任务继续。
+echo Running in background. You can close this window.
