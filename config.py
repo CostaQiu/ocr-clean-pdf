@@ -11,9 +11,10 @@ BACKEND = "pipeline"  # MinerU 后端；可切 "vlm-engine"
 LANG = "ch"  # PaddleOCR 语言(中文模型含英文识别)
 DEVICE = "cuda"  # 本期固定 GPU；缺 CUDA 报错
 
-# 提速开关：这类文字书极少表格/公式,关掉可省每页 CPU 开销
-FORMULA_ENABLE = False  # 公式检测(关)
-TABLE_ENABLE = False  # 表格检测(关)
+# 表格/公式检测：默认开,换取广泛适用(带表格/公式的书也能处理)。
+# 速度已足够(批量 180 的提速足以覆盖这点开销)。纯文字书想再快可手动设 False。
+FORMULA_ENABLE = True  # 公式检测(开)
+TABLE_ENABLE = True  # 表格检测(开)
 
 # 可选提速(默认不启用)：设环境变量 MINERU_VIRTUAL_VRAM_SIZE=32 会把 GPU 批量
 # 从 batch_ratio=8 翻到 16。但这是对 16G 卡"谎报"32G 显存,有 OOM 风险,且 GPU
