@@ -149,11 +149,14 @@ def set_all(df, value: bool):
     return df
 
 
-def convert(folder: str, df, outdir: str, progress=gr.Progress()):
+def convert(folder: str, df, outdir: str, force: bool = True, progress=gr.Progress()):
     """对勾选的书依次 OCR → 合并 → 渲染 clean_<名>.pdf。
 
     生成器：边跑边 yield 状态到结果区(实时可见)；进度条按总页数推进。
+    force=True 时清掉该书的 _ocr_work 缓存重新 OCR(覆盖);False 则用缓存续跑。
     """
+    import shutil
+
     folder = Path((folder or "").strip().strip('"'))
     selected = sorted(_selected_from(df))
     if not selected:
@@ -192,6 +195,8 @@ def convert(folder: str, df, outdir: str, progress=gr.Progress()):
     for idx, pdf in enumerate(books):
         name = pdf.stem
         work = outdir / "_ocr_work" / name
+        if force:
+            shutil.rmtree(work, ignore_errors=True)  # 覆盖：清缓存重新 OCR
         done_head = ("\n\n".join(logs) + "\n\n---\n\n") if logs else ""
         yield done_head + f"⏳ 正在处理第 **{idx + 1}/{len(books)}** 本：《{name}》（{per[idx]} 页）— OCR 中…"
 
@@ -270,6 +275,10 @@ def build():
             label="③ 输出目录（默认 = 上面的文件夹）",
             placeholder="留空则输出到源文件夹",
         )
+        force = gr.Checkbox(
+            value=True,
+            label="重新扫描（覆盖已处理的，不用缓存）— 取消勾选可对超大书续跑",
+        )
         status = gr.Markdown()
         go = gr.Button("④ 开始转换", variant="primary")
         result = gr.Markdown()
@@ -291,7 +300,7 @@ def build():
         go.click(
             lambda: gr.update(value="⏳ 转换中…请稍候", interactive=False),
             outputs=go,
-        ).then(convert, inputs=[folder, table, outdir], outputs=result).then(
+        ).then(convert, inputs=[folder, table, outdir, force], outputs=result).then(
             lambda: gr.update(value="④ 开始转换", interactive=True), outputs=go
         )
     return demo
