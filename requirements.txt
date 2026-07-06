@@ -1,0 +1,4 @@
+# torch 单独装(CUDA 版),不写在这里
+mineru[core]
+PyMuPDF
+pytest

@@ -49,9 +49,14 @@ pytest
 ```
 .venv-ocr/
 output/
+output_smoke/
 __pycache__/
 *.pyc
+.superpowers/
+# 源扫描 PDF 不入库(148MB)
+*.pdf
 ```
+（注：git 仓库与此 `.gitignore` 已在执行前初始化；本步与已有内容一致即可，勿改回包含 PDF。）
 
 - [ ] **Step 3: 写 `config.py`**
 
