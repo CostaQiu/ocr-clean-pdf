@@ -18,12 +18,30 @@ def test_build_mineru_cmd_uses_inclusive_end_and_flags():
     assert "-b" in cmd and "pipeline" in cmd
     assert "-m" in cmd and "ocr" in cmd
     assert "-l" in cmd and "ch" in cmd
+    # 默认 formula/table 为 True → 显式传 true
+    assert "-f" in cmd and "-t" in cmd
+
+
+def test_build_mineru_cmd_disables_formula_and_table():
+    cmd = run_ocr.build_mineru_cmd(
+        Path("book.pdf"),
+        Path("out"),
+        start=0,
+        end_exclusive=40,
+        backend="pipeline",
+        lang="ch",
+        formula=False,
+        table=False,
+    )
+    # -f false / -t false 关闭公式与表格检测
+    assert cmd[cmd.index("-f") + 1] == "false"
+    assert cmd[cmd.index("-t") + 1] == "false"
 
 
 def test_run_all_skips_done_batches(tmp_path, monkeypatch):
     calls = []
 
-    def fake_run_one(pdf, out, s, e, backend, lang):
+    def fake_run_one(pdf, out, s, e, backend, lang, formula=True, table=True):
         calls.append((s, e))
         return True  # 假装成功
 

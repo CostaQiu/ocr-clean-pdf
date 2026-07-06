@@ -41,9 +41,19 @@ def count_pages(pdf: Path) -> int:
 
 
 def build_mineru_cmd(
-    pdf: Path, out: Path, start: int, end_exclusive: int, backend: str, lang: str
+    pdf: Path,
+    out: Path,
+    start: int,
+    end_exclusive: int,
+    backend: str,
+    lang: str,
+    formula: bool = True,
+    table: bool = True,
 ) -> list[str]:
-    """MinerU 的 -e 含端点；我们的批 end 不含，故传 end_exclusive-1。"""
+    """MinerU 的 -e 含端点；我们的批 end 不含，故传 end_exclusive-1。
+
+    formula/table 显式传给 MinerU 的 -f/-t（默认 True）；关掉可省 CPU 开销。
+    """
     mineru = str(Path(sys.executable).with_name("mineru.exe"))
     return [
         mineru,
@@ -61,15 +71,28 @@ def build_mineru_cmd(
         str(start),
         "-e",
         str(end_exclusive - 1),
+        "-f",
+        str(formula).lower(),
+        "-t",
+        str(table).lower(),
     ]
 
 
 def _run_one_batch(
-    pdf: Path, out_dir: Path, start: int, end_exclusive: int, backend: str, lang: str
+    pdf: Path,
+    out_dir: Path,
+    start: int,
+    end_exclusive: int,
+    backend: str,
+    lang: str,
+    formula: bool = True,
+    table: bool = True,
 ) -> bool:
     """跑单批，成功（返回码 0 且产出 markdown）返回 True。"""
     out_dir.mkdir(parents=True, exist_ok=True)
-    cmd = build_mineru_cmd(pdf, out_dir, start, end_exclusive, backend, lang)
+    cmd = build_mineru_cmd(
+        pdf, out_dir, start, end_exclusive, backend, lang, formula, table
+    )
     print(f"[batch {start:04d}-{end_exclusive:04d}] {' '.join(cmd)}")
     proc = subprocess.run(cmd)
     if proc.returncode != 0:
@@ -84,7 +107,13 @@ def _run_one_batch(
 
 
 def run_all(
-    pdf: Path, output_dir: Path, batch_size: int, backend: str, lang: str
+    pdf: Path,
+    output_dir: Path,
+    batch_size: int,
+    backend: str,
+    lang: str,
+    formula: bool = True,
+    table: bool = True,
 ) -> dict:
     t0 = time.perf_counter()
     total = count_pages(pdf)
@@ -95,7 +124,14 @@ def run_all(
             print(f"[batch {start:04d}-{end:04d}] 已完成，跳过")
             continue
         ok = _run_one_batch(
-            pdf, batch_dir(output_dir, start, end), start, end, backend, lang
+            pdf,
+            batch_dir(output_dir, start, end),
+            start,
+            end,
+            backend,
+            lang,
+            formula,
+            table,
         )
         if ok:
             mark_batch_done(output_dir, start, end)
@@ -138,7 +174,15 @@ def main() -> None:
         sys.exit(f"错误：找不到输入 PDF：{args.pdf}")
 
     print(f"[start] {args.pdf.name} → {args.output}")
-    result = run_all(args.pdf, args.output, args.batch_size, args.backend, args.lang)
+    result = run_all(
+        args.pdf,
+        args.output,
+        args.batch_size,
+        args.backend,
+        args.lang,
+        config.FORMULA_ENABLE,
+        config.TABLE_ENABLE,
+    )
     _write_flag(args.output, result)
     print(f"[done] {result}")
 
