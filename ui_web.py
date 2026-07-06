@@ -150,30 +150,45 @@ def set_all(df, value: bool):
 
 
 def convert(folder: str, df, outdir: str, progress=gr.Progress()):
-    """对勾选的书依次 OCR → 合并 → 渲染 clean_<名>.pdf。进度条按总页数推进。"""
+    """对勾选的书依次 OCR → 合并 → 渲染 clean_<名>.pdf。
+
+    生成器：边跑边 yield 状态到结果区(实时可见)；进度条按总页数推进。
+    """
     folder = Path((folder or "").strip().strip('"'))
     selected = sorted(_selected_from(df))
     if not selected:
-        return "⚠ 请在表格「选择」列勾选至少一本书。"
+        yield "⚠ 请在表格「选择」列勾选至少一本书。"
+        return
     outdir = Path((outdir or "").strip().strip('"') or folder)
+
+    yield "⏳ **已开始转换**，正在检查 GPU、统计页数…"
 
     try:
         import torch
 
         if not torch.cuda.is_available():
-            return "❌ 未检测到 CUDA GPU。请确认 .venv-ocr 装的是 CUDA 版 torch。"
+            yield "❌ 未检测到 CUDA GPU。请确认 .venv-ocr 装的是 CUDA 版 torch。"
+            return
     except ImportError:
-        return "❌ 未安装 torch。"
+        yield "❌ 未安装 torch。"
+        return
 
     books = [folder / n for n in selected]
     per = [run_ocr.count_pages(b) for b in books]
     grand = sum(per) or 1
+    progress(0.0, desc="开始")
+    yield (
+        f"⏳ 共 **{len(books)}** 本、**{grand}** 页，开始 OCR。\n\n"
+        f"（进度条见上方；每批约 180 页、需 1–2 分钟，批内进度条不动是正常的）"
+    )
+
     logs = []
     offset = 0
-
     for idx, pdf in enumerate(books):
         name = pdf.stem
         work = outdir / "_ocr_work" / name
+        done_head = ("\n\n".join(logs) + "\n\n---\n\n") if logs else ""
+        yield done_head + f"⏳ 正在处理第 **{idx + 1}/{len(books)}** 本：《{name}》（{per[idx]} 页）— OCR 中…"
 
         def cb(done, total, bi, nb, running, _off=offset, _n=name, _i=idx):
             frac = (_off + done) / grand
@@ -193,15 +208,17 @@ def convert(folder: str, df, outdir: str, progress=gr.Progress()):
             progress_cb=cb,
         )
         progress((offset + per[idx]) / grand, desc=f"《{name}》· 合并 + 渲染 PDF…")
+        yield done_head + f"⏳ 《{name}》 OCR 完成，正在合并 + 渲染 PDF…"
         merge_md.merge(work)
         out_pdf = outdir / f"clean_{name}.pdf"
         make_pdf.render(work / "book.md", out_pdf)
         tail = f"（⚠ 失败批次 {result['failed']}）" if not result["ok"] else ""
         logs.append(f"✅ 《{name}》 → `{out_pdf}` {tail}")
         offset += per[idx]
+        yield "\n\n".join(logs)
 
     progress(1.0, desc="完成")
-    return f"🎉 全部完成，共 {len(books)} 本：\n\n" + "\n\n".join(logs)
+    yield f"🎉 **全部完成，共 {len(books)} 本：**\n\n" + "\n\n".join(logs)
 
 
 def build():
@@ -258,7 +275,12 @@ def build():
         select_all_btn.click(lambda df: set_all(df, True), inputs=table, outputs=table)
         clear_btn.click(lambda df: set_all(df, False), inputs=table, outputs=table)
 
-        go.click(convert, inputs=[folder, table, outdir], outputs=result)
+        go.click(
+            lambda: gr.update(value="⏳ 转换中…请稍候", interactive=False),
+            outputs=go,
+        ).then(convert, inputs=[folder, table, outdir], outputs=result).then(
+            lambda: gr.update(value="④ 开始转换", interactive=True), outputs=go
+        )
     return demo
 
 
