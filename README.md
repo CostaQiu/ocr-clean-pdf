@@ -21,12 +21,15 @@ winget install --id Typst.Typst -e
 ```
 验证 CUDA：`.\.venv-ocr\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"` 应为 `True`。
 
-## 用法（图形界面，推荐）
-双击 **`run_ui.bat`** 打开界面：
-1. 「选择 PDF（可多选）」——可一次选同目录多本书。
-2. 「输出目录」默认 = 源 PDF 所在目录，可改。
-3. 「开始转换」——进度条按总页数推进，多本依次跑。
-4. 成品为 **`clean_<原名>.pdf`**，放在输出目录；中间文件在 `<输出目录>\_ocr_work\<书名>\`（含 `book.md`，可喂 TTS；支持续跑）。
+## 用法（网页界面，推荐）
+双击 **`run_ui.bat`** —— 会在浏览器自动打开(本地 localhost，Gradio)：
+1. 「书籍所在文件夹」粘贴一个文件夹路径 → 点「扫描 PDF」，列出该文件夹里所有 PDF（大小写都认，默认全选）。
+2. 勾选要转换的书（可多选，同目录多本一起跑）。
+3. 「输出目录」默认 = 上面的文件夹，可改。
+4. 「开始转换」——进度条按总页数推进，多本依次跑。
+5. 成品为 **`clean_<原名>.pdf`**，放在输出目录；中间文件在 `<输出目录>\_ocr_work\<书名>\`（含 `book.md`，可喂 TTS；支持续跑）。
+
+（旧的 Tkinter 桌面窗口版仍保留：双击 `run_ui_tk.bat`。）
 
 ## 用法（命令行）
 1. 改 `config.py` 的 `INPUT_PDF`（或用 `run_ocr.py -p 路径 -o 输出目录`）。
