@@ -1,0 +1,8 @@
+.venv-ocr/
+output/
+output_smoke/
+__pycache__/
+*.pyc
+.superpowers/
+# 源扫描 PDF 不入库(148MB)
+*.pdf
