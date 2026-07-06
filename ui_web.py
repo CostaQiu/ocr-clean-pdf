@@ -238,8 +238,8 @@ def build():
             scan_btn = gr.Button("🔄 刷新列表", scale=1, variant="secondary")
 
         with gr.Row():
-            sort_key = gr.Dropdown(SORT_KEYS, value="文件名", label="排序依据", scale=2)
-            order = gr.Radio(["升序", "降序"], value="升序", label="顺序", scale=2)
+            sort_key = gr.Dropdown(SORT_KEYS, value="大小", label="排序依据", scale=2)
+            order = gr.Radio(["升序", "降序"], value="降序", label="顺序", scale=2)
             select_all_btn = gr.Button("全选", scale=1)
             clear_btn = gr.Button("清空", scale=1)
 
