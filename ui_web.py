@@ -163,6 +163,11 @@ def convert(folder: str, df, outdir: str, progress=gr.Progress()):
 
     yield "⏳ **已开始转换**，正在检查 GPU、统计页数…"
 
+    import time
+
+    t0 = time.perf_counter()
+    total_chars = 0
+
     try:
         import torch
 
@@ -209,16 +214,24 @@ def convert(folder: str, df, outdir: str, progress=gr.Progress()):
         )
         progress((offset + per[idx]) / grand, desc=f"《{name}》· 合并 + 渲染 PDF…")
         yield done_head + f"⏳ 《{name}》 OCR 完成，正在合并 + 渲染 PDF…"
-        merge_md.merge(work)
+        book_md = merge_md.merge(work)
+        chars = len(book_md.read_text(encoding="utf-8"))
+        total_chars += chars
         out_pdf = outdir / f"clean_{name}.pdf"
         make_pdf.render(work / "book.md", out_pdf)
         tail = f"（⚠ 失败批次 {result['failed']}）" if not result["ok"] else ""
-        logs.append(f"✅ 《{name}》 → `{out_pdf}` {tail}")
+        logs.append(f"✅ 《{name}》 → `{out_pdf}`  ({chars:,} 字){tail}")
         offset += per[idx]
         yield "\n\n".join(logs)
 
     progress(1.0, desc="完成")
-    yield f"🎉 **全部完成，共 {len(books)} 本：**\n\n" + "\n\n".join(logs)
+    elapsed = int(time.perf_counter() - t0)
+    mm, ss = divmod(elapsed, 60)
+    elapsed_str = f"{mm} 分 {ss} 秒" if mm else f"{ss} 秒"
+    yield (
+        f"🎉 **全部完成，共 {len(books)} 本 · {grand} 页 · {total_chars:,} 字 · 耗时 {elapsed_str}**\n\n"
+        + "\n\n".join(logs)
+    )
 
 
 def build():
