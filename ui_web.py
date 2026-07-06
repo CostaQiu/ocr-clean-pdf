@@ -1,7 +1,7 @@
-"""OCR 网页界面（Gradio）：选文件夹里的扫描 PDF(可多选) → clean_<原名>.pdf。
+"""OCR 网页界面（Gradio）：选文件夹里的扫描 PDF(表格式，可排序，多选) → clean_<原名>.pdf。
 
-在浏览器里打开(本地 localhost)。相比 Tkinter 更现代，且自己列目录里的 PDF，
-不依赖系统文件对话框，保证目录里的书全列出来。
+在浏览器里打开(本地 localhost)。自己列目录里的 PDF(不依赖系统文件对话框)，
+表格显示大小/修改日期、可排序、默认不全选。
 运行：双击 run_ui.bat（用 .venv-ocr）。
 """
 
@@ -13,8 +13,10 @@ try:
 except Exception:
     pass
 
+from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
 import gradio as gr
 
 import config
@@ -22,15 +24,75 @@ import run_ocr
 import merge_md
 import make_pdf
 
+COLS = ["选择", "文件名", "大小", "修改日期"]
+SORT_KEYS = ["文件名", "大小", "修改日期"]
+
+
+def _human_size(n: int) -> str:
+    x = float(n)
+    for u in ["B", "KB", "MB", "GB"]:
+        if x < 1024 or u == "GB":
+            return f"{x:.0f} {u}" if u == "B" else f"{x:.1f} {u}"
+        x /= 1024
+    return f"{x:.1f} GB"
+
+
+def _empty_df() -> pd.DataFrame:
+    return pd.DataFrame([], columns=COLS)
+
+
+def _as_df(value) -> pd.DataFrame:
+    if isinstance(value, pd.DataFrame):
+        return value
+    if not value:
+        return _empty_df()
+    return pd.DataFrame(value, columns=COLS)
+
+
+def _build_rows(
+    folder: str, names, sort_key: str, ascending: bool, selected: set
+) -> pd.DataFrame:
+    """按 names 读取每个文件的大小/修改时间，排序，组装表格；selected 里的名字打勾。"""
+    p = Path(folder)
+    items = []
+    for name in names:
+        f = p / name
+        try:
+            st = f.stat()
+            size, mtime = st.st_size, st.st_mtime
+        except OSError:
+            size, mtime = 0, 0.0
+        items.append((name, size, mtime))
+    keyfn = {
+        "文件名": lambda t: t[0],
+        "大小": lambda t: t[1],
+        "修改日期": lambda t: t[2],
+    }.get(sort_key, lambda t: t[0])
+    items.sort(key=keyfn, reverse=not ascending)
+    rows = [
+        [
+            name in selected,
+            name,
+            _human_size(size),
+            datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M") if mtime else "",
+        ]
+        for (name, size, mtime) in items
+    ]
+    return pd.DataFrame(rows, columns=COLS)
+
+
+def _selected_from(df) -> set:
+    df = _as_df(df)
+    if len(df) == 0:
+        return set()
+    mask = df["选择"].astype(bool)
+    return set(df.loc[mask, "文件名"].tolist())
+
 
 def browse_folder():
-    """弹出 Windows 原生文件夹选择框，返回所选路径。
-
-    用子进程跑 tkinter 对话框，避开 Gradio 工作线程里直接用 tkinter 的问题。
-    """
+    """弹出 Windows 原生文件夹选择框，返回所选路径（子进程，避开线程问题）。"""
     import os
     import subprocess
-    import sys
 
     code = (
         "import sys; sys.stdout.reconfigure(encoding='utf-8');"
@@ -50,33 +112,49 @@ def browse_folder():
         return gr.update()
 
 
-def scan_folder(folder: str):
-    """列出文件夹里所有 PDF(大小写都认)，默认全选；输出目录默认填该文件夹。"""
+def scan_folder(folder: str, sort_key: str, order: str):
+    """列出文件夹里所有 PDF(大小写都认)，默认不全选；输出目录默认填该文件夹。"""
     folder = (folder or "").strip().strip('"')
     p = Path(folder)
     if not folder or not p.is_dir():
-        return (
-            gr.update(choices=[], value=[]),
-            "",
-            "⚠ 文件夹不存在，请粘贴有效路径（如 `D:\\books`）。",
-        )
-    pdfs = sorted(
-        f.name for f in p.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"
-    )
-    if not pdfs:
-        return gr.update(choices=[], value=[]), folder, "该文件夹里没有 PDF。"
+        return _empty_df(), "", "⚠ 文件夹不存在，请点「📁 浏览」选择或粘贴有效路径。"
+    names = [f.name for f in p.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"]
+    if not names:
+        return _empty_df(), folder, "该文件夹里没有 PDF。"
+    df = _build_rows(folder, names, sort_key, order == "升序", selected=set())
     return (
-        gr.update(choices=pdfs, value=pdfs),
+        df,
         folder,
-        f"✅ 找到 **{len(pdfs)}** 个 PDF（默认全选，可取消不需要的）。",
+        f"✅ 找到 **{len(names)}** 个 PDF。勾选要转换的书（默认不选，可用下方「全选」）。",
     )
 
 
-def convert(folder: str, selected, outdir: str, progress=gr.Progress()):
-    """对选中的书依次 OCR → 合并 → 渲染 clean_<名>.pdf。进度条按总页数推进。"""
-    if not selected:
-        return "⚠ 请至少勾选一本书。"
+def sort_table(folder: str, df, sort_key: str, order: str):
+    """按当前选择状态重排（保留已勾选）。"""
+    df = _as_df(df)
+    if len(df) == 0:
+        return df
+    names = df["文件名"].tolist()
+    selected = _selected_from(df)
+    return _build_rows(
+        (folder or "").strip().strip('"'), names, sort_key, order == "升序", selected
+    )
+
+
+def set_all(df, value: bool):
+    df = _as_df(df).copy()
+    if len(df) == 0:
+        return df
+    df["选择"] = value
+    return df
+
+
+def convert(folder: str, df, outdir: str, progress=gr.Progress()):
+    """对勾选的书依次 OCR → 合并 → 渲染 clean_<名>.pdf。进度条按总页数推进。"""
     folder = Path((folder or "").strip().strip('"'))
+    selected = sorted(_selected_from(df))
+    if not selected:
+        return "⚠ 请在表格「选择」列勾选至少一本书。"
     outdir = Path((outdir or "").strip().strip('"') or folder)
 
     try:
@@ -136,12 +214,28 @@ def build():
         with gr.Row():
             folder = gr.Textbox(
                 label="① 书籍所在文件夹",
-                placeholder=r"点「浏览」选文件夹，或直接粘贴路径如 D:\books",
+                placeholder=r"点「📁 浏览」选文件夹，或直接粘贴路径如 D:\books",
                 scale=3,
             )
             browse_btn = gr.Button("📁 浏览", scale=1)
-            scan_btn = gr.Button("扫描 PDF", scale=1, variant="secondary")
-        files = gr.CheckboxGroup(label="② 选择要转换的书（默认全选）", choices=[])
+            scan_btn = gr.Button("🔄 刷新列表", scale=1, variant="secondary")
+
+        with gr.Row():
+            sort_key = gr.Dropdown(SORT_KEYS, value="文件名", label="排序依据", scale=2)
+            order = gr.Radio(["升序", "降序"], value="升序", label="顺序", scale=2)
+            select_all_btn = gr.Button("全选", scale=1)
+            clear_btn = gr.Button("清空", scale=1)
+
+        table = gr.Dataframe(
+            headers=COLS,
+            datatype=["bool", "str", "str", "str"],
+            col_count=(4, "fixed"),
+            column_widths=["8%", "60%", "14%", "18%"],
+            interactive=True,
+            wrap=True,
+            label="② 选择要转换的书（勾选「选择」列；点上方排序）",
+        )
+
         outdir = gr.Textbox(
             label="③ 输出目录（默认 = 上面的文件夹）",
             placeholder="留空则输出到源文件夹",
@@ -150,13 +244,21 @@ def build():
         go = gr.Button("④ 开始转换", variant="primary")
         result = gr.Markdown()
 
-        # 浏览 → 填路径 → 自动扫描列出 PDF
+        scan_out = [table, outdir, status]
         browse_btn.click(browse_folder, outputs=folder).then(
-            scan_folder, inputs=folder, outputs=[files, outdir, status]
+            scan_folder, inputs=[folder, sort_key, order], outputs=scan_out
         )
-        scan_btn.click(scan_folder, inputs=folder, outputs=[files, outdir, status])
-        folder.submit(scan_folder, inputs=folder, outputs=[files, outdir, status])
-        go.click(convert, inputs=[folder, files, outdir], outputs=result)
+        scan_btn.click(scan_folder, inputs=[folder, sort_key, order], outputs=scan_out)
+        folder.submit(scan_folder, inputs=[folder, sort_key, order], outputs=scan_out)
+
+        sort_key.change(
+            sort_table, inputs=[folder, table, sort_key, order], outputs=table
+        )
+        order.change(sort_table, inputs=[folder, table, sort_key, order], outputs=table)
+        select_all_btn.click(lambda df: set_all(df, True), inputs=table, outputs=table)
+        clear_btn.click(lambda df: set_all(df, False), inputs=table, outputs=table)
+
+        go.click(convert, inputs=[folder, table, outdir], outputs=result)
     return demo
 
 
@@ -164,7 +266,6 @@ def main():
     import os
 
     demo = build().queue()
-    # prevent_thread_lock 让 launch 立即返回,拿到本地地址后我们自己开浏览器
     _, local_url, _ = demo.launch(
         server_port=7860,
         inbrowser=False,
@@ -178,10 +279,10 @@ def main():
         flush=True,
     )
     try:
-        os.startfile(url)  # Windows 最可靠的开默认浏览器方式
+        os.startfile(url)
     except Exception as e:
         print(f"（自动打开浏览器失败，请手动访问上面的地址）{e}", flush=True)
-    demo.block_thread()  # 保持服务运行
+    demo.block_thread()
 
 
 if __name__ == "__main__":
