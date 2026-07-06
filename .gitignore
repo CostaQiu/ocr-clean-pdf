@@ -1,6 +1,5 @@
 .venv-ocr/
-output/
-output_smoke/
+output*/
 __pycache__/
 *.pyc
 .superpowers/
