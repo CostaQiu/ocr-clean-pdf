@@ -129,7 +129,27 @@ def build():
 
 
 def main():
-    build().queue().launch(inbrowser=True, theme=gr.themes.Soft())
+    import os
+
+    demo = build().queue()
+    # prevent_thread_lock 让 launch 立即返回,拿到本地地址后我们自己开浏览器
+    _, local_url, _ = demo.launch(
+        server_port=7860,
+        inbrowser=False,
+        theme=gr.themes.Soft(),
+        prevent_thread_lock=True,
+    )
+    url = local_url or "http://127.0.0.1:7860"
+    print(
+        f"\n{'=' * 50}\n  界面已启动：{url}\n"
+        f"  浏览器应已自动打开；若没有，手动访问上面的地址。\n{'=' * 50}\n",
+        flush=True,
+    )
+    try:
+        os.startfile(url)  # Windows 最可靠的开默认浏览器方式
+    except Exception as e:
+        print(f"（自动打开浏览器失败，请手动访问上面的地址）{e}", flush=True)
+    demo.block_thread()  # 保持服务运行
 
 
 if __name__ == "__main__":
