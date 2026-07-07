@@ -3,5 +3,9 @@ output*/
 __pycache__/
 *.pyc
 .superpowers/
+.claude/
+.pytest_cache/
 # 源扫描 PDF 不入库(148MB)
 *.pdf
+# 内部开发笔记(含具体测试书的开发记录，不公开)
+docs/

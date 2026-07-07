@@ -82,7 +82,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="book.md → 干净 PDF（Pandoc+Typst）")
     ap.add_argument("--md", type=Path, default=config.OUTPUT_DIR / "book.md")
     ap.add_argument(
-        "--pdf", type=Path, default=config.OUTPUT_DIR / "中国政治思想史.pdf"
+        "--pdf", type=Path, default=config.OUTPUT_DIR / "clean_output.pdf"
     )
     ap.add_argument("--font", default=DEFAULT_FONT)
     args = ap.parse_args()

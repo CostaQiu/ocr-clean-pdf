@@ -3,7 +3,9 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-INPUT_PDF = PROJECT_ROOT / "中国政治思想史 (萧公权) (Z-Library).pdf"
+# 默认输入 PDF（占位符）。把你的扫描版 PDF 放到项目根目录并改这里，
+# 或者用 `run_ocr.py -p 路径` / Web 界面文件选择器指定。Web 界面不依赖此项。
+INPUT_PDF = PROJECT_ROOT / "your-scanned-book.pdf"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 
 BATCH_SIZE = 180  # 每批页数(大批 → 更少子进程启动开销,提速关键)

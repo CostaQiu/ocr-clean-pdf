@@ -10,7 +10,7 @@
 
 ## 安装
 ```powershell
-cd C:\python_code\OCR
+cd ocr-clean-pdf
 py -3.12 -m venv .venv-ocr
 .\.venv-ocr\Scripts\python.exe -m pip install --upgrade pip
 # 先装 mineru，再装 CUDA torch（顺序重要：mineru 会拉一个 CPU 版 torch，最后覆盖回 CUDA 版）
