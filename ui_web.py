@@ -1,8 +1,6 @@
-"""OCR 网页界面（Gradio）：选文件夹里的扫描 PDF(表格式，可排序，多选) → clean_<原名>.pdf。
+"""OCR 网页界面（Gradio）：选文件夹里的扫描 PDF → clean_<原名>.pdf。
 
-在浏览器里打开(本地 localhost)。自己列目录里的 PDF(不依赖系统文件对话框)，
-表格显示大小/修改日期、可排序、默认不全选。
-运行：双击 run_ui.bat（用 .venv-ocr）。
+现代风格界面，黄色/琥珀色主色调。
 """
 
 import sys
@@ -26,6 +24,161 @@ import make_pdf
 
 COLS = ["选择", "文件名", "大小", "修改日期"]
 SORT_KEYS = ["文件名", "大小", "修改日期"]
+
+# ── 琥珀/黄色现代主题 ──
+THEME = gr.themes.Soft(
+    primary_hue=gr.themes.Color(
+        c50="#FFFBEB",
+        c100="#FEF3C7",
+        c200="#FDE68A",
+        c300="#FCD34D",
+        c400="#FBBF24",
+        c500="#F59E0B",  # 主色：琥珀金
+        c600="#D97706",
+        c700="#B45309",
+        c800="#92400E",
+        c900="#78350F",
+        c950="#451A03",
+    ),
+    secondary_hue=gr.themes.Color(
+        c50="#FFFBEB",
+        c100="#FEF3C7",
+        c200="#FDE68A",
+        c300="#FCD34D",
+        c400="#FBBF24",
+        c500="#F59E0B",
+        c600="#D97706",
+        c700="#B45309",
+        c800="#92400E",
+        c900="#78350F",
+        c950="#451A03",
+    ),
+    neutral_hue=gr.themes.Color(
+        c50="#F8FAFC",
+        c100="#F1F5F9",
+        c200="#E2E8F0",
+        c300="#CBD5E1",
+        c400="#94A3B8",
+        c500="#64748B",
+        c600="#475569",
+        c700="#334155",
+        c800="#1E293B",
+        c900="#0F172A",
+        c950="#020617",
+    ),
+    spacing_size=gr.themes.sizes.spacing_lg,
+    radius_size=gr.themes.sizes.radius_md,
+    text_size=gr.themes.sizes.text_lg,
+)
+
+CUSTOM_CSS = """
+/* ── 全局 ── */
+.gradio-container { max-width: 1100px !important; margin: 2rem auto !important; }
+body { background: #FFFBEB !important; }
+
+/* ── 头部卡片 ── */
+.app-header {
+    background: linear-gradient(135deg, #F59E0B 0%, #D97706 50%, #B45309 100%);
+    color: white; border-radius: 16px; padding: 2rem 2.5rem;
+    margin-bottom: 2rem; box-shadow: 0 8px 24px rgba(245,158,11,0.25);
+}
+.app-header h1 { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.4rem 0; color: white; letter-spacing: -0.01em; }
+.app-header p { font-size: 0.95rem; margin: 0; opacity: 0.9; line-height: 1.5; }
+
+/* ── 卡片容器 ── */
+.card {
+    background: white; border-radius: 14px; padding: 1.25rem 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    border: 1px solid #FDE68A;
+    margin-bottom: 1.25rem;
+}
+
+/* ── 按钮 ── */
+button.primary, .gr-button.primary {
+    background: linear-gradient(135deg, #F59E0B, #D97706) !important;
+    border: none !important; color: white !important; font-weight: 600 !important;
+    border-radius: 10px !important; padding: 0.6rem 1.8rem !important;
+    transition: all 0.2s ease !important; box-shadow: 0 2px 8px rgba(245,158,11,0.3) !important;
+}
+button.primary:hover, .gr-button.primary:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 16px rgba(245,158,11,0.4) !important;
+}
+
+button.secondary, .gr-button.secondary {
+    background: #FFFBEB !important;
+    border: 1px solid #FDE68A !important;
+    color: #92400E !important;
+    border-radius: 10px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+}
+button.secondary:hover, .gr-button.secondary:hover {
+    background: #FEF3C7 !important;
+    border-color: #FCD34D !important;
+}
+
+/* ── 输入框 ── */
+.gr-box, .gr-input, .gr-text-input, input[type="text"], input[type="search"], textarea {
+    border-radius: 10px !important;
+    border: 1.5px solid #FDE68A !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+.gr-box:focus, .gr-input:focus, input:focus, textarea:focus {
+    border-color: #F59E0B !important;
+    box-shadow: 0 0 0 3px rgba(245,158,11,0.15) !important;
+}
+
+/* ── 下拉 / 单选框 ── */
+.gr-dropdown, .gr-radio {
+    border-radius: 10px !important;
+}
+
+/* ── 数据表格 ── */
+table.dataframe {
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    border: 1px solid #FDE68A !important;
+}
+table.dataframe thead {
+    background: linear-gradient(135deg, #FFFBEB, #FEF3C7) !important;
+}
+table.dataframe th {
+    color: #92400E !important;
+    font-weight: 600 !important;
+    padding: 0.6rem 0.8rem !important;
+    border-bottom: 2px solid #FDE68A !important;
+}
+table.dataframe td {
+    padding: 0.5rem 0.8rem !important;
+    border-bottom: 1px solid #FEF3C7 !important;
+}
+table.dataframe tr:hover td {
+    background: #FFFBEB !important;
+}
+
+/* ── 进度条 ── */
+.gr-progress .progress-bar {
+    background: linear-gradient(90deg, #FCD34D, #F59E0B, #D97706) !important;
+    border-radius: 100px !important;
+    height: 8px !important;
+}
+.gr-progress {
+    background: #FEF3C7 !important;
+    border-radius: 100px !important;
+    height: 8px !important;
+    overflow: hidden;
+}
+
+/* ── Markdown 输出 ── */
+.gr-markdown { line-height: 1.7; }
+.gr-markdown h3 { color: #92400E; margin-top: 1rem; }
+
+/* ── 复选框 ── */
+.gr-checkbox input:checked {
+    accent-color: #F59E0B !important;
+}
+"""
 
 
 def _human_size(n: int) -> str:
@@ -52,7 +205,6 @@ def _as_df(value) -> pd.DataFrame:
 def _build_rows(
     folder: str, names, sort_key: str, ascending: bool, selected: set
 ) -> pd.DataFrame:
-    """按 names 读取每个文件的大小/修改时间，排序，组装表格；selected 里的名字打勾。"""
     p = Path(folder)
     items = []
     for name in names:
@@ -90,7 +242,6 @@ def _selected_from(df) -> set:
 
 
 def browse_folder():
-    """弹出 Windows 原生文件夹选择框，返回所选路径（子进程，避开线程问题）。"""
     import os
     import subprocess
 
@@ -113,11 +264,10 @@ def browse_folder():
 
 
 def scan_folder(folder: str, sort_key: str, order: str):
-    """列出文件夹里所有 PDF(大小写都认)，默认不全选；输出目录默认填该文件夹。"""
     folder = (folder or "").strip().strip('"')
     p = Path(folder)
     if not folder or not p.is_dir():
-        return _empty_df(), "", "⚠ 文件夹不存在，请点「📁 浏览」选择或粘贴有效路径。"
+        return _empty_df(), "", "⚠ 文件夹不存在，请选择或粘贴有效路径。"
     names = [f.name for f in p.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"]
     if not names:
         return _empty_df(), folder, "该文件夹里没有 PDF。"
@@ -125,12 +275,11 @@ def scan_folder(folder: str, sort_key: str, order: str):
     return (
         df,
         folder,
-        f"✅ 找到 **{len(names)}** 个 PDF。勾选要转换的书（默认不选，可用下方「全选」）。",
+        f"找到 **{len(names)}** 个 PDF。勾选要转换的书，点击下方开始。",
     )
 
 
 def sort_table(folder: str, df, sort_key: str, order: str):
-    """按当前选择状态重排（保留已勾选）。"""
     df = _as_df(df)
     if len(df) == 0:
         return df
@@ -150,21 +299,16 @@ def set_all(df, value: bool):
 
 
 def convert(folder: str, df, outdir: str, force: bool = True, progress=gr.Progress()):
-    """对勾选的书依次 OCR → 合并 → 渲染 clean_<名>.pdf。
-
-    生成器：边跑边 yield 状态到结果区(实时可见)；进度条按总页数推进。
-    force=True 时清掉该书的 _ocr_work 缓存重新 OCR(覆盖);False 则用缓存续跑。
-    """
     import shutil
 
     folder = Path((folder or "").strip().strip('"'))
     selected = sorted(_selected_from(df))
     if not selected:
-        yield "⚠ 请在表格「选择」列勾选至少一本书。"
+        yield "⚠ 请在表格中勾选至少一本书。"
         return
     outdir = Path((outdir or "").strip().strip('"') or folder)
 
-    yield "⏳ **已开始转换**，正在检查 GPU、统计页数…"
+    yield "⏳ 正在检查 GPU、统计页数…"
 
     import time
 
@@ -175,7 +319,7 @@ def convert(folder: str, df, outdir: str, force: bool = True, progress=gr.Progre
         import torch
 
         if not torch.cuda.is_available():
-            yield "❌ 未检测到 CUDA GPU。请确认 .venv-ocr 装的是 CUDA 版 torch。"
+            yield "❌ 未检测到 CUDA GPU。请确认安装的是 CUDA 版 torch。"
             return
     except ImportError:
         yield "❌ 未安装 torch。"
@@ -186,8 +330,8 @@ def convert(folder: str, df, outdir: str, force: bool = True, progress=gr.Progre
     grand = sum(per) or 1
     progress(0.0, desc="开始")
     yield (
-        f"⏳ 共 **{len(books)}** 本、**{grand}** 页，开始 OCR。\n\n"
-        f"（进度条见上方；每批约 180 页、需 1–2 分钟，批内进度条不动是正常的）"
+        f"共 **{len(books)}** 本、**{grand}** 页，开始 OCR。\n\n"
+        f"每批约 180 页、需 1–2 分钟，批内进度条不动属正常现象。"
     )
 
     logs = []
@@ -196,9 +340,9 @@ def convert(folder: str, df, outdir: str, force: bool = True, progress=gr.Progre
         name = pdf.stem
         work = outdir / "_ocr_work" / name
         if force:
-            shutil.rmtree(work, ignore_errors=True)  # 覆盖：清缓存重新 OCR
+            shutil.rmtree(work, ignore_errors=True)
         done_head = ("\n\n".join(logs) + "\n\n---\n\n") if logs else ""
-        yield done_head + f"⏳ 正在处理第 **{idx + 1}/{len(books)}** 本：《{name}》（{per[idx]} 页）— OCR 中…"
+        yield done_head + f"⏳ 第 **{idx + 1}/{len(books)}** 本：《{name}》（{per[idx]} 页）— OCR 中…"
 
         def cb(done, total, bi, nb, running, _off=offset, _n=name, _i=idx):
             frac = (_off + done) / grand
@@ -234,55 +378,72 @@ def convert(folder: str, df, outdir: str, force: bool = True, progress=gr.Progre
     mm, ss = divmod(elapsed, 60)
     elapsed_str = f"{mm} 分 {ss} 秒" if mm else f"{ss} 秒"
     yield (
-        f"🎉 **全部完成，共 {len(books)} 本 · {grand} 页 · {total_chars:,} 字 · 耗时 {elapsed_str}**\n\n"
+        f"🎉 **全部完成 · {len(books)} 本 · {grand} 页 · {total_chars:,} 字 · 耗时 {elapsed_str}**\n\n"
         + "\n\n".join(logs)
     )
 
 
 def build():
-    with gr.Blocks(title="扫描 PDF → 干净 PDF") as demo:
-        gr.Markdown(
-            "# 📖 扫描 PDF → 干净 PDF（本地 GPU OCR）\n"
-            "选一个文件夹里的扫描书（可多选），本地显卡 OCR 成 **`clean_<原名>.pdf`**——"
-            "重排版、可搜索、保留脚注、带目录。"
+    with gr.Blocks(
+        theme=THEME, title="扫描 PDF → 干净 PDF", css=CUSTOM_CSS, head=None
+    ) as demo:
+        # ── 顶部横幅 ──
+        gr.HTML(
+            """<div class="app-header">
+                <h1>OCR 智能转换</h1>
+                <p>扫描版 PDF → 可搜索的干净 PDF · 本地 GPU 加速 · 保留脚注与目录</p>
+            </div>"""
         )
-        with gr.Row():
-            folder = gr.Textbox(
-                label="① 书籍所在文件夹",
-                placeholder=r"点「📁 浏览」选文件夹，或直接粘贴路径如 D:\books",
-                scale=3,
+
+        # ── 步骤 1：选择文件夹 ──
+        with gr.Group(elem_classes="card"):
+            gr.Markdown("### 📂 选择书籍文件夹")
+            with gr.Row():
+                folder = gr.Textbox(
+                    label="文件夹路径",
+                    placeholder="点「浏览」选文件夹，或直接粘贴路径",
+                    scale=4,
+                )
+                browse_btn = gr.Button("浏览", scale=1, elem_classes="secondary")
+                scan_btn = gr.Button("刷新列表", scale=1, elem_classes="secondary")
+
+        # ── 步骤 2：筛选与选择 ──
+        with gr.Group(elem_classes="card"):
+            gr.Markdown("### 📋 选择要转换的 PDF")
+            with gr.Row():
+                sort_key = gr.Dropdown(SORT_KEYS, value="大小", label="排序依据", scale=2)
+                order = gr.Radio(["升序", "降序"], value="降序", label="顺序", scale=2)
+                select_all_btn = gr.Button("全选", scale=1, elem_classes="secondary")
+                clear_btn = gr.Button("清空选择", scale=1, elem_classes="secondary")
+
+            table = gr.Dataframe(
+                headers=COLS,
+                datatype=["bool", "str", "str", "str"],
+                col_count=(4, "fixed"),
+                column_widths=["8%", "60%", "14%", "18%"],
+                interactive=True,
+                wrap=True,
+                label="勾选「选择」列来标记要转换的书籍",
             )
-            browse_btn = gr.Button("📁 浏览", scale=1)
-            scan_btn = gr.Button("🔄 刷新列表", scale=1, variant="secondary")
 
-        with gr.Row():
-            sort_key = gr.Dropdown(SORT_KEYS, value="大小", label="排序依据", scale=2)
-            order = gr.Radio(["升序", "降序"], value="降序", label="顺序", scale=2)
-            select_all_btn = gr.Button("全选", scale=1)
-            clear_btn = gr.Button("清空", scale=1)
+        # ── 步骤 3：输出设置 ──
+        with gr.Group(elem_classes="card"):
+            gr.Markdown("### ⚙️ 输出设置")
+            outdir = gr.Textbox(
+                label="输出目录",
+                placeholder="留空则输出到源文件夹",
+            )
+            force = gr.Checkbox(
+                value=True,
+                label="强制重新扫描（覆盖缓存）— 取消勾选可续跑中断的任务",
+            )
 
-        table = gr.Dataframe(
-            headers=COLS,
-            datatype=["bool", "str", "str", "str"],
-            col_count=(4, "fixed"),
-            column_widths=["8%", "60%", "14%", "18%"],
-            interactive=True,
-            wrap=True,
-            label="② 选择要转换的书（勾选「选择」列；点上方排序）",
-        )
-
-        outdir = gr.Textbox(
-            label="③ 输出目录（默认 = 上面的文件夹）",
-            placeholder="留空则输出到源文件夹",
-        )
-        force = gr.Checkbox(
-            value=True,
-            label="重新扫描（覆盖已处理的，不用缓存）— 取消勾选可对超大书续跑",
-        )
+        # ── 步骤 4：执行 ──
         status = gr.Markdown()
-        go = gr.Button("④ 开始转换", variant="primary")
+        go = gr.Button("开始转换", variant="primary", size="lg")
         result = gr.Markdown()
 
+        # ── 事件绑定 ──
         scan_out = [table, outdir, status]
         browse_btn.click(browse_folder, outputs=folder).then(
             scan_folder, inputs=[folder, sort_key, order], outputs=scan_out
@@ -301,7 +462,7 @@ def build():
             lambda: gr.update(value="⏳ 转换中…请稍候", interactive=False),
             outputs=go,
         ).then(convert, inputs=[folder, table, outdir, force], outputs=result).then(
-            lambda: gr.update(value="④ 开始转换", interactive=True), outputs=go
+            lambda: gr.update(value="开始转换", interactive=True), outputs=go
         )
     return demo
 
@@ -313,7 +474,6 @@ def main():
     _, local_url, _ = demo.launch(
         server_port=7860,
         inbrowser=False,
-        theme=gr.themes.Soft(),
         prevent_thread_lock=True,
     )
     url = local_url or "http://127.0.0.1:7860"

@@ -1,12 +1,11 @@
-"""OCR 图形界面：选扫描 PDF(可多选，同目录多本) → 输出 clean_<名>.pdf，带进度条。
+"""OCR 图形界面 — 现代黄色主题版。
 
-后台线程跑 OCR，界面不卡死；进度条按总页数推进。
-运行：双击 run_ui.bat（用 .venv-ocr）。
+选扫描 PDF(可多选，同目录多本) → 输出 clean_<名>.pdf，带进度条。
+后台线程跑 OCR，界面不卡死。
 """
 
 import sys
 
-# UTF-8 控制台，避免中文日志在 cp1252 控制台崩溃
 try:
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
@@ -26,56 +25,235 @@ import run_ocr
 import merge_md
 import make_pdf
 
+# ── 黄色主题色板 ──
+YELLOW_BG = "#FFFBEB"          # 暖白背景
+YELLOW_CARD = "#FFFFFF"        # 卡片白
+YELLOW_BORDER = "#FDE68A"      # 浅金边框
+YELLOW_PRIMARY = "#F59E0B"     # 琥珀金主色
+YELLOW_DARK = "#D97706"        # 深琥珀
+YELLOW_LIGHT = "#FEF3C7"       # 浅琥珀底
+YELLOW_TEXT = "#92400E"        # 棕色文字
+YELLOW_GRADIENT_FROM = "#F59E0B"
+YELLOW_GRADIENT_TO = "#B45309"
+FONT_FAMILY = "Segoe UI" if sys.platform == "win32" else "Ubuntu"
+
+
+def _setup_style():
+    """为 ttk 控件注册黄色主题样式。"""
+    style = ttk.Style()
+    # 尝试用 'clam' 主题（支持自定义色）
+    try:
+        style.theme_use("clam")
+    except tk.TclError:
+        pass
+
+    style.configure(".", font=(FONT_FAMILY, 10))
+    style.configure(
+        "TFrame", background=YELLOW_BG
+    )
+    style.configure(
+        "Card.TFrame", background=YELLOW_CARD, relief="solid", borderwidth=1
+    )
+
+    # 按钮
+    style.configure(
+        "Accent.TButton",
+        background=YELLOW_PRIMARY,
+        foreground="white",
+        borderwidth=0,
+        focusthickness=3,
+        focuscolor="none",
+        font=(FONT_FAMILY, 10, "bold"),
+        padding=(20, 8),
+        relief="flat",
+    )
+    style.map(
+        "Accent.TButton",
+        background=[("active", YELLOW_DARK), ("disabled", "#D1D5DB")],
+        foreground=[("disabled", "#9CA3AF")],
+    )
+
+    style.configure(
+        "Secondary.TButton",
+        background=YELLOW_LIGHT,
+        foreground=YELLOW_TEXT,
+        borderwidth=1,
+        focusthickness=0,
+        font=(FONT_FAMILY, 9),
+        padding=(14, 6),
+        relief="solid",
+    )
+    style.map(
+        "Secondary.TButton",
+        background=[("active", "#FDE68A")],
+    )
+
+    # 标签
+    style.configure(
+        "TLabel",
+        background=YELLOW_BG,
+        foreground="#334155",
+        font=(FONT_FAMILY, 10),
+    )
+    style.configure(
+        "Accent.TLabel",
+        background=YELLOW_BG,
+        foreground=YELLOW_TEXT,
+        font=(FONT_FAMILY, 10, "bold"),
+    )
+    style.configure(
+        "Status.TLabel",
+        background=YELLOW_BG,
+        foreground="#475569",
+        font=(FONT_FAMILY, 9),
+    )
+
+    # 进度条
+    style.configure(
+        "Yellow.Horizontal.TProgressbar",
+        background=YELLOW_PRIMARY,
+        troughcolor=YELLOW_LIGHT,
+        bordercolor=YELLOW_BORDER,
+        lightcolor=YELLOW_DARK,
+        darkcolor=YELLOW_DARK,
+        thickness=10,
+    )
+
+    # Entry
+    style.configure(
+        "TEntry",
+        fieldbackground="white",
+        borderwidth=1,
+        bordercolor=YELLOW_BORDER,
+        padding=(8, 4),
+        font=(FONT_FAMILY, 10),
+    )
+    style.map(
+        "TEntry",
+        bordercolor=[("focus", YELLOW_PRIMARY)],
+    )
+
+
+def _draw_header(canvas, width):
+    """在 Canvas 上画渐变色头部横幅。"""
+    canvas.delete("all")
+    h = 72
+    canvas.config(width=width, height=h, highlightthickness=0)
+    # 近似渐变：画叠色矩形
+    for i in range(80):
+        ratio = i / 80
+        r = int(0xF5 - (0xF5 - 0xB4) * ratio)
+        g = int(0x9E - (0x9E - 0x53) * ratio)
+        b = int(0x0B - (0x0B - 0x09) * ratio)
+        color = f"#{r:02x}{g:02x}{b:02x}"
+        x0 = int(width * ratio / 80 * i)
+        x1 = int(width * (ratio + 1 / 80))
+        canvas.create_rectangle(x0, 0, x1, h, fill=color, outline="")
+    canvas.create_text(
+        width // 2,
+        28,
+        text="OCR 智能转换",
+        fill="white",
+        font=(FONT_FAMILY, 18, "bold"),
+    )
+    canvas.create_text(
+        width // 2,
+        52,
+        text="扫描 PDF → 可搜索的干净 PDF",
+        fill="white",
+        font=(FONT_FAMILY, 10),
+    )
+
 
 class OcrApp:
     def __init__(self, root):
         self.root = root
         root.title("扫描 PDF → 干净 PDF（本地 OCR）")
-        root.geometry("660x540")
+        root.geometry("680x580")
+        root.configure(bg=YELLOW_BG)
         self.pdfs = []
         self.q = queue.Queue()
         self.running = False
 
-        pad = dict(padx=12, pady=6)
+        _setup_style()
+        pad = dict(padx=16, pady=5)
 
-        # 文件选择
-        top = ttk.Frame(root)
-        top.pack(fill="x", **pad)
-        ttk.Button(top, text="选择 PDF（可多选）", command=self.choose_pdfs).pack(
-            side="left"
-        )
+        # ── 顶部横幅 ──
+        self.header_canvas = tk.Canvas(root, bg=YELLOW_BG, highlightthickness=0)
+        self.header_canvas.pack(fill="x", padx=0, pady=(0, 8))
+        self.header_canvas.bind("<Configure>", self._on_resize_header)
+
+        # ── 文件选择 ──
+        card1 = tk.Frame(root, bg=YELLOW_CARD, highlightbackground=YELLOW_BORDER, highlightthickness=1)
+        card1.pack(fill="x", **pad)
+        card1.pack_propagate(False)
+
+        row1 = tk.Frame(card1, bg=YELLOW_CARD)
+        row1.pack(fill="x", pady=8, padx=12)
+
+        ttk.Button(
+            row1, text="选择 PDF（可多选）", style="Accent.TButton",
+            command=self.choose_pdfs,
+        ).pack(side="left")
+
         self.files_var = tk.StringVar(value="未选择文件")
-        ttk.Label(top, textvariable=self.files_var, foreground="#555").pack(
-            side="left", padx=10
-        )
+        tk.Label(
+            row1, textvariable=self.files_var, fg=YELLOW_TEXT,
+            bg=YELLOW_CARD, font=(FONT_FAMILY, 10),
+        ).pack(side="left", padx=12)
 
-        # 输出目录（默认 = 源 PDF 所在目录）
-        outf = ttk.Frame(root)
-        outf.pack(fill="x", **pad)
-        ttk.Label(outf, text="输出目录：").pack(side="left")
+        # ── 输出目录 ──
+        card2 = tk.Frame(root, bg=YELLOW_CARD, highlightbackground=YELLOW_BORDER, highlightthickness=1)
+        card2.pack(fill="x", **pad)
+        card2.pack_propagate(False)
+
+        row2 = tk.Frame(card2, bg=YELLOW_CARD)
+        row2.pack(fill="x", pady=8, padx=12)
+
+        tk.Label(
+            row2, text="输出目录：", fg="#334155", bg=YELLOW_CARD,
+            font=(FONT_FAMILY, 10),
+        ).pack(side="left")
         self.outdir_var = tk.StringVar()
-        ttk.Entry(outf, textvariable=self.outdir_var).pack(
-            side="left", fill="x", expand=True, padx=6
+        ttk.Entry(row2, textvariable=self.outdir_var, font=(FONT_FAMILY, 10)).pack(
+            side="left", fill="x", expand=True, padx=8
         )
-        ttk.Button(outf, text="浏览", command=self.choose_outdir).pack(side="left")
+        ttk.Button(
+            row2, text="浏览", style="Secondary.TButton",
+            command=self.choose_outdir,
+        ).pack(side="left")
 
-        # 开始
-        self.start_btn = ttk.Button(root, text="开始转换", command=self.start)
-        self.start_btn.pack(**pad)
+        # ── 开始按钮 ──
+        btn_frame = tk.Frame(root, bg=YELLOW_BG)
+        btn_frame.pack(fill="x", **pad)
+        self.start_btn = ttk.Button(
+            btn_frame, text="开始转换", style="Accent.TButton",
+            command=self.start,
+        )
+        self.start_btn.pack(pady=4)
 
-        # 进度条 + 状态
-        self.bar = ttk.Progressbar(root, mode="determinate", maximum=100)
+        # ── 进度条 ──
+        self.bar = ttk.Progressbar(
+            root, style="Yellow.Horizontal.TProgressbar", mode="determinate", maximum=100
+        )
         self.bar.pack(fill="x", **pad)
-        self.status_var = tk.StringVar(value="就绪。成品命名 clean_<原名>.pdf")
-        ttk.Label(root, textvariable=self.status_var).pack(**pad)
 
-        # 日志
+        self.status_var = tk.StringVar(value="就绪。成品命名 clean_<原名>.pdf")
+        ttk.Label(root, textvariable=self.status_var, style="Status.TLabel").pack(**pad)
+
+        # ── 日志 ──
         self.log = scrolledtext.ScrolledText(
-            root, height=13, state="disabled", wrap="word"
+            root, height=11, state="disabled", wrap="word",
+            bg="white", fg="#1E293B",
+            font=("Consolas", 9) if sys.platform == "win32" else ("Ubuntu Mono", 9),
+            relief="solid", borderwidth=1,
         )
         self.log.pack(fill="both", expand=True, **pad)
 
         self.root.after(100, self._poll)
+
+    def _on_resize_header(self, event):
+        _draw_header(self.header_canvas, event.width)
 
     # ---------- 交互 ----------
     def choose_pdfs(self):
@@ -88,7 +266,7 @@ class OcrApp:
         self.pdfs = [Path(f) for f in files]
         self.files_var.set(f"已选 {len(self.pdfs)} 本")
         if not self.outdir_var.get():
-            self.outdir_var.set(str(self.pdfs[0].parent))  # 默认原目录
+            self.outdir_var.set(str(self.pdfs[0].parent))
         self._log("已选择：\n" + "\n".join(f"  · {p.name}" for p in self.pdfs))
 
     def choose_outdir(self):
